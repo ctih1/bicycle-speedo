@@ -80,6 +80,7 @@ else()
     list(APPEND MAIN_SOURCES src/main.c)
 endif()
 
+list(APPEND MAIN_SOURCES src/assets/down.c src/assets/up.c)
 
 if(NOT MSVC)
     list(APPEND MAIN_LIBS m pthread)
