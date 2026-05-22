@@ -30,35 +30,62 @@
 
 #define BUTTON_GOTO_SETTINGS 1
 #define BUTTON_GOFROM_SETTINGS 2
+#define SETTINGS_BTN_RESET_TRIP 3
 
 #ifdef LV_DEF_REFR_PERIOD
     #undef LV_DEF_REFR_PERIOD
 #endif
 
-#define REFRESH_SLEEP_MS 100
+#define REFRESH_SLEEP_MS 200
 
 #if LV_USE_OS != LV_OS_FREERTOS
 
 extern const lv_img_dsc_t down;
 extern const lv_img_dsc_t up;
+extern const lv_img_dsc_t bikeicon;
+
+extern const lv_img_dsc_t battery;
+extern const lv_img_dsc_t fwheelsensor;
+extern const lv_img_dsc_t gearsensor;
+extern const lv_img_dsc_t orientationsensor;
+extern const lv_img_dsc_t pedalsensor;
 
 static lv_obj_t *dashboard_view;
 static lv_obj_t *settings_view;
+static lv_obj_t *splash_screen_view;
 
 static lv_obj_t *speed_label;
 static lv_obj_t *gear_label;
 static lv_obj_t *pedal_rpm_label;
 static lv_obj_t *front_rpm_label;
 static lv_obj_t *shift_image;
+static lv_obj_t *bike_image;
+static lv_obj_t *bike_rotation_label;
 static lv_obj_t *battery_voltage_label;
 static lv_obj_t *battery_voltage_rect;
 static lv_obj_t *trip_distance_label;
+
+static lv_obj_t *battery_icon;
+static lv_obj_t *gear_icon;
+static lv_obj_t *fwheel_icon;
+static lv_obj_t *pedal_icon;
+static lv_obj_t *orientation_icon;
 
 static int speed = 4;
 static int pedal_rpm = 60;
 static int wheel_rpm = 168;
 static float battery_voltage = 4.3f;
 static int distance_traveled = 2419;
+
+static int bike_rotation = 0;
+
+static bool battery_warning = true;
+static bool front_wheel_warning = false;
+static bool pedal_warning = false;
+static bool gear_warning = true;
+static bool tilt_warning = false;
+
+static bool splash_shown = false;
 
 static void settings_callback(lv_event_t* event) {
     lv_event_code_t code = lv_event_get_code(event);
@@ -74,6 +101,47 @@ static void settings_callback(lv_event_t* event) {
 static void setting_change_callback(lv_event_t* event) {
     lv_event_code_t code = lv_event_get_code(event);
     int button_action = (int*)lv_event_get_user_data(event);
+
+    switch(button_action) {
+        case SETTINGS_BTN_RESET_TRIP:
+            distance_traveled = 0;
+            break;
+    }
+}
+
+
+void create_button(char label[64], char text[64], int x, int y, int action_id) {
+    lv_button_t *button = lv_button_create(settings_view);
+    lv_obj_add_event_cb(button, setting_change_callback, LV_EVENT_CLICKED, action_id);
+
+    lv_label_t *desc_label = lv_label_create(settings_view);
+    lv_obj_set_style_text_font(desc_label, &lv_font_montserrat_24, 0);
+    lv_label_set_text(desc_label, label);
+
+    lv_label_t *button_label = lv_label_create(button);
+    lv_label_set_text(button_label, text);
+
+    lv_obj_set_pos(desc_label, x, y);
+    lv_obj_set_pos(button, x, y + 26);
+}
+
+lv_obj_t *create_label(char text[64], lv_obj_t *view, int x, int y) {
+    lv_obj_t *label = lv_label_create(view);
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+    lv_obj_set_pos(label, x, y);
+
+    return label;
+}
+
+lv_obj_t *create_icon(const void *src, lv_obj_t *view, int x, int y, int scaling) {
+    lv_obj_t *icon = lv_image_create(view);
+    lv_obj_set_pos(icon, x, y);
+    lv_image_set_src(icon, src);
+    lv_image_set_scale(icon, scaling);
+    lv_image_set_antialias(icon, false);
+
+    return icon;
 }
 
 void create_dashboard() {
@@ -123,26 +191,16 @@ void create_dashboard() {
     lv_obj_set_style_text_font(trip_distance_label, &lv_font_montserrat_20, 0);
     lv_obj_set_pos(trip_distance_label, SIDE_MARGIN, 320-20-MARGIN);
 
+    bike_image = create_icon(&bikeicon, dashboard_view, 155, 90, 256);
+    bike_rotation_label = lv_label_create(dashboard_view);
+    lv_obj_set_style_text_font(bike_rotation_label, &lv_font_montserrat_20, 0);
+    lv_obj_set_pos(bike_rotation_label, 155, 90);
+
     lv_button_t *settings_button = lv_button_create(dashboard_view);
     lv_label_t *settings_button_label = lv_label_create(settings_button);
     lv_label_set_text(settings_button_label, "Settings");
     lv_obj_add_event_cb(settings_button, settings_callback, LV_EVENT_CLICKED, BUTTON_GOTO_SETTINGS);
     lv_obj_set_align(settings_button, LV_ALIGN_BOTTOM_RIGHT);
-}
-
-void create_button(char label[64], char text[64], int x, int y, int action_id) {
-    lv_button_t *button = lv_button_create(settings_view);
-    lv_obj_add_event_cb(button, setting_change_callback, LV_EVENT_CLICKED, action_id);
-
-    lv_label_t *desc_label = lv_label_create(settings_view);
-    lv_obj_set_style_text_font(desc_label, &lv_font_montserrat_24, 0);
-    lv_label_set_text(desc_label, label);
-
-    lv_label_t *button_label = lv_label_create(button);
-    lv_label_set_text(button_label, text);
-
-    lv_obj_set_pos(desc_label, x, y);
-    lv_obj_set_pos(button, x, y + 26);
 }
 
 void create_settings() {
@@ -157,7 +215,7 @@ void create_settings() {
     lv_obj_add_event_cb(settings_button, settings_callback, LV_EVENT_CLICKED, BUTTON_GOFROM_SETTINGS);
     lv_obj_set_align(settings_button, LV_ALIGN_BOTTOM_RIGHT);
 
-    create_button("Reset current trip", "Reset", SIDE_MARGIN, 60, 2);
+    create_button("Reset current trip", "Reset", SIDE_MARGIN, 60, SETTINGS_BTN_RESET_TRIP);
     create_button("Reset trip A", "Reset", SIDE_MARGIN, 120, 2);
     create_button("Reset trip B", "Reset", SIDE_MARGIN, 180, 3);
     create_button("Reset trip C", "Reset", SIDE_MARGIN, 240, 4);
@@ -165,12 +223,26 @@ void create_settings() {
     create_button("Wipe data part.", "Wipe", SIDE_MARGIN, 360, 4);
 }
 
+
+void create_open_animation() {
+
+    lv_label_t *label = create_label("BATT 3.3 V", splash_screen_view, SIDE_MARGIN, 260);
+
+    battery_icon = create_icon(&battery, splash_screen_view, 32, 50, 512);
+    gear_icon = create_icon(&gearsensor, splash_screen_view, 32+64+MARGIN, 50, 512);
+    fwheel_icon = create_icon(&fwheelsensor, splash_screen_view, 32+128+MARGIN, 50, 512);
+    pedal_icon = create_icon(&pedalsensor, splash_screen_view, 32, 50+64, 512);
+    orientation_icon = create_icon(&orientationsensor, splash_screen_view, 32+64+MARGIN, 50+64, 512);
+}
+
 void create_ui() {
     dashboard_view = lv_obj_create(NULL);
     settings_view = lv_obj_create(NULL);
+    splash_screen_view = lv_obj_create(NULL);
 
     create_dashboard();
     create_settings();
+    create_open_animation();
 }
 
 int main(int argc, char **argv)
@@ -183,10 +255,42 @@ int main(int argc, char **argv)
   sdl_hal_init(240, 320);
 
   create_ui();
-  lv_scr_load(dashboard_view);
+  lv_scr_load(splash_screen_view);
 
   while(1) {
     uint32_t sleep_time_ms = lv_timer_handler();
+
+    if (!splash_shown) {
+        #ifdef _MSC_VER
+            Sleep(1500);
+        #else
+            usleep(1500 * 1000);
+        #endif
+
+        if (!gear_warning) {
+            lv_obj_add_flag(gear_icon, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (!tilt_warning) {
+            lv_obj_add_flag(orientation_icon, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (!pedal_warning) {
+            lv_obj_add_flag(pedal_icon, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (!battery_warning) {
+            lv_obj_add_flag(battery_icon, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        lv_timer_handler();
+
+        #ifdef _MSC_VER
+            Sleep(2000);
+        #else
+            usleep(2000 * 1000);
+        #endif
+
+        splash_shown = true;
+        lv_scr_load(dashboard_view);
+    }
 
     char speed_text[32];
     sprintf(speed_text, "%d KMH", speed);
@@ -207,6 +311,10 @@ int main(int argc, char **argv)
     char trip_text[32];
     sprintf(trip_text, "TRIP: %.2f KM", (double)distance_traveled/1000);
     lv_label_set_text(trip_distance_label, trip_text);
+
+    char bike_rotation_text[32];
+    sprintf(bike_rotation_text, "%d *", bike_rotation);
+    lv_label_set_text(bike_rotation_label, bike_rotation_text);
 
     lv_color_t rpm_color = lv_color_hex(0xFF0000);
     lv_color_t battery_color = lv_color_hex(0XFF0000);
@@ -241,8 +349,15 @@ int main(int argc, char **argv)
         battery_color = lv_color_hex(0xed1111);
     }
 
+    bike_rotation += 1;
+
+    if (bike_rotation > 3600) {
+        bike_rotation = 0;
+    }
+    lv_image_set_rotation(bike_image, 3600 - bike_rotation);
+
     wheel_rpm += 1;
-    battery_voltage -= 0.01;
+    battery_voltage -= 0.01f;
     pedal_rpm += 1;
 
     if (pedal_rpm % 3 == 0) {

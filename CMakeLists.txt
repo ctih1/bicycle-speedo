@@ -80,7 +80,8 @@ else()
     list(APPEND MAIN_SOURCES src/main.c)
 endif()
 
-list(APPEND MAIN_SOURCES src/assets/down.c src/assets/up.c)
+list(APPEND MAIN_SOURCES src/assets/down.c src/assets/up.c src/assets/bikeicon.c)
+list(APPEND MAIN_SOURCES src/assets/warnings/battery.c src/assets/warnings/fwheelsensor.c src/assets/warnings/gearsensor.c src/assets/warnings/orientationsensor.c src/assets/warnings/pedalsensor.c)
 
 if(NOT MSVC)
     list(APPEND MAIN_LIBS m pthread)
