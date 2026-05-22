@@ -31,6 +31,7 @@
 #define BUTTON_GOTO_SETTINGS 1
 #define BUTTON_GOFROM_SETTINGS 2
 #define SETTINGS_BTN_RESET_TRIP 3
+#define SETTINGS_BTN_VIEW_ERRORS 4
 
 #ifdef LV_DEF_REFR_PERIOD
     #undef LV_DEF_REFR_PERIOD
@@ -105,6 +106,20 @@ static void setting_change_callback(lv_event_t* event) {
     switch(button_action) {
         case SETTINGS_BTN_RESET_TRIP:
             distance_traveled = 0;
+            break;
+
+        case SETTINGS_BTN_VIEW_ERRORS:
+            splash_shown = false;
+
+            lv_obj_remove_flag(gear_icon, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(orientation_icon, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(pedal_icon, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(battery_icon, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(fwheel_icon, LV_OBJ_FLAG_HIDDEN);
+
+            lv_scr_load(splash_screen_view);
+            lv_timer_handler();
+
             break;
     }
 }
@@ -221,6 +236,7 @@ void create_settings() {
     create_button("Reset trip C", "Reset", SIDE_MARGIN, 240, 4);
     create_button("Metric/Imperial", "Toggle", SIDE_MARGIN, 300, 4);
     create_button("Wipe data part.", "Wipe", SIDE_MARGIN, 360, 4);
+    create_button("View error dash", "View", SIDE_MARGIN, 420, SETTINGS_BTN_VIEW_ERRORS);
 }
 
 
@@ -269,6 +285,9 @@ int main(int argc, char **argv)
 
         if (!gear_warning) {
             lv_obj_add_flag(gear_icon, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (!front_wheel_warning) {
+            lv_obj_add_flag(fwheel_icon, LV_OBJ_FLAG_HIDDEN);
         }
         if (!tilt_warning) {
             lv_obj_add_flag(orientation_icon, LV_OBJ_FLAG_HIDDEN);
@@ -367,10 +386,12 @@ int main(int argc, char **argv)
     lv_obj_set_style_text_color(pedal_rpm_label, rpm_color, LV_PART_MAIN);
     lv_obj_set_style_bg_color(battery_voltage_rect, battery_color, 0);
 
+    int refresh_rate = lv_screen_active() == dashboard_view ? REFRESH_SLEEP_MS : 33;
+
     #ifdef _MSC_VER
-        Sleep(REFRESH_SLEEP_MS);
+        Sleep(refresh_rate);
     #else
-        usleep(REFRESH_SLEEP_MS * 1000);
+        usleep(refresh_rate * 1000);
     #endif
   }
 
