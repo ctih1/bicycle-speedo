@@ -20,10 +20,9 @@
   #include <pthread.h>
 #endif
 #include "lvgl/lvgl.h"
-#include "lvgl/examples/lv_examples.h"
-#include "lvgl/demos/lv_demos.h"
 #include <SDL.h>
 #include "hal/hal.h"
+#include "ui_helpers.h"
 
 #define MARGIN 4
 #define SIDE_MARGIN 8
@@ -32,14 +31,13 @@
 #define BUTTON_GOFROM_SETTINGS 2
 #define SETTINGS_BTN_RESET_TRIP 3
 #define SETTINGS_BTN_VIEW_ERRORS 4
+#define SETTINGS_BTN_VIEW_GEARS 9
 
 #ifdef LV_DEF_REFR_PERIOD
     #undef LV_DEF_REFR_PERIOD
 #endif
 
 #define REFRESH_SLEEP_MS 200
-
-#if LV_USE_OS != LV_OS_FREERTOS
 
 extern const lv_img_dsc_t down;
 extern const lv_img_dsc_t up;
@@ -54,6 +52,7 @@ extern const lv_img_dsc_t pedalsensor;
 static lv_obj_t *dashboard_view;
 static lv_obj_t *settings_view;
 static lv_obj_t *splash_screen_view;
+static lv_obj_t *gear_screen_view;
 
 static lv_obj_t *speed_label;
 static lv_obj_t *gear_label;
@@ -121,42 +120,11 @@ static void setting_change_callback(lv_event_t* event) {
             lv_timer_handler();
 
             break;
+
+        case SETTINGS_BTN_VIEW_GEARS:
+            lv_scr_load(gear_screen_view);
+            break;
     }
-}
-
-
-void create_button(char label[64], char text[64], int x, int y, int action_id) {
-    lv_button_t *button = lv_button_create(settings_view);
-    lv_obj_add_event_cb(button, setting_change_callback, LV_EVENT_CLICKED, action_id);
-
-    lv_label_t *desc_label = lv_label_create(settings_view);
-    lv_obj_set_style_text_font(desc_label, &lv_font_montserrat_24, 0);
-    lv_label_set_text(desc_label, label);
-
-    lv_label_t *button_label = lv_label_create(button);
-    lv_label_set_text(button_label, text);
-
-    lv_obj_set_pos(desc_label, x, y);
-    lv_obj_set_pos(button, x, y + 26);
-}
-
-lv_obj_t *create_label(char text[64], lv_obj_t *view, int x, int y) {
-    lv_obj_t *label = lv_label_create(view);
-    lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
-    lv_obj_set_pos(label, x, y);
-
-    return label;
-}
-
-lv_obj_t *create_icon(const void *src, lv_obj_t *view, int x, int y, int scaling) {
-    lv_obj_t *icon = lv_image_create(view);
-    lv_obj_set_pos(icon, x, y);
-    lv_image_set_src(icon, src);
-    lv_image_set_scale(icon, scaling);
-    lv_image_set_antialias(icon, false);
-
-    return icon;
 }
 
 void create_dashboard() {
@@ -230,19 +198,49 @@ void create_settings() {
     lv_obj_add_event_cb(settings_button, settings_callback, LV_EVENT_CLICKED, BUTTON_GOFROM_SETTINGS);
     lv_obj_set_align(settings_button, LV_ALIGN_BOTTOM_RIGHT);
 
-    create_button("Reset current trip", "Reset", SIDE_MARGIN, 60, SETTINGS_BTN_RESET_TRIP);
-    create_button("Reset trip A", "Reset", SIDE_MARGIN, 120, 2);
-    create_button("Reset trip B", "Reset", SIDE_MARGIN, 180, 3);
-    create_button("Reset trip C", "Reset", SIDE_MARGIN, 240, 4);
-    create_button("Metric/Imperial", "Toggle", SIDE_MARGIN, 300, 4);
-    create_button("Wipe data part.", "Wipe", SIDE_MARGIN, 360, 4);
-    create_button("View error dash", "View", SIDE_MARGIN, 420, SETTINGS_BTN_VIEW_ERRORS);
+    lv_obj_t *trip_settings_view = create_settings_container(settings_view, "Trip settings");
+    create_settings_part(trip_settings_view, "Reset current trip", "Reset", CLICK, setting_change_callback, -1);
+    create_settings_part(trip_settings_view, "Reset trip B", "Reset", CLICK, setting_change_callback, -1);
+    create_settings_part(trip_settings_view, "Reset trip C", "Reset", CLICK, setting_change_callback, -1);
+    update_height(trip_settings_view);
+
+    lv_obj_t *measurements_settings_view = create_settings_container(settings_view, "Measurements");
+    create_settings_part(measurements_settings_view, "Height (cm)", "e.g. 160", NUMBER, setting_change_callback, -1);
+    create_settings_part(measurements_settings_view, "Weight (kg)", "e.g. 70", NUMBER, setting_change_callback, -1);
+    update_height(measurements_settings_view);
+
+    lv_obj_t *sensor_settings_view = create_settings_container(settings_view, "Sensors");
+    create_settings_part(sensor_settings_view, "Front wheel magnet count", "default: 1", NUMBER, setting_change_callback, -1);
+    create_settings_part(sensor_settings_view, "Pedal magnet count", "default: 2", NUMBER, setting_change_callback, -1);
+    create_settings_part(sensor_settings_view, "Speed calc timeframe (s)", "default: 5", NUMBER, setting_change_callback, -1);
+    create_settings_part(sensor_settings_view, "Wheel size (in.)", "default: 29", NUMBER, setting_change_callback, -1);
+    create_settings_part(sensor_settings_view, "Gear configuration", "Open", CLICK, setting_change_callback, SETTINGS_BTN_VIEW_GEARS);
+    update_height(sensor_settings_view);
+
+    lv_obj_t *findmy_settings_view = create_settings_container(settings_view, "FindMy");
+    create_settings_part(findmy_settings_view, "Enable support for Apple's Find My -network", "", TRUEFALSE, setting_change_callback, -1);
+    create_settings_part(findmy_settings_view, "Ping interval (wait for n seconds)", "How many seconds to wait between pings", NUMBER, setting_change_callback, -1);
+    create_settings_part(findmy_settings_view, "Ping on boot", "", TRUEFALSE, setting_change_callback, -1);
+    update_height(findmy_settings_view);
+
+    lv_obj_t *storage_settings_view = create_settings_container(settings_view, "Storage");
+    create_settings_part(storage_settings_view, "Wipe partitions", "Wipe", CLICK, setting_change_callback, -1);
+    update_height(storage_settings_view);
+
+
+    // create_settings_button(settings_view, "Reset trip A", "Reset", SIDE_MARGIN, 120, 2, setting_change_callback);
+    // create_settings_button(settings_view, "Reset trip B", "Reset", SIDE_MARGIN, 180, 3, setting_change_callback);
+    // create_settings_button(settings_view, "Reset trip C", "Reset", SIDE_MARGIN, 240, 4, setting_change_callback);
+    // create_settings_button(settings_view, "Metric/Imperial", "Toggle", SIDE_MARGIN, 300, 4, setting_change_callback);
+    // create_settings_button(settings_view, "Wipe data part.", "Wipe", SIDE_MARGIN, 360, 4, setting_change_callback);
+    // create_settings_button(settings_view, "View error dash", "View", SIDE_MARGIN, 420, SETTINGS_BTN_VIEW_ERRORS, setting_change_callback);
 }
 
 
 void create_open_animation() {
+    lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), 0);
 
-    lv_label_t *label = create_label("BATT 3.3 V", splash_screen_view, SIDE_MARGIN, 260);
+    lv_label_t *label = create_label("BATT 3.3 V", splash_screen_view);
 
     battery_icon = create_icon(&battery, splash_screen_view, 32, 50, 512);
     gear_icon = create_icon(&gearsensor, splash_screen_view, 32+64+MARGIN, 50, 512);
@@ -251,20 +249,33 @@ void create_open_animation() {
     orientation_icon = create_icon(&orientationsensor, splash_screen_view, 32+64+MARGIN, 50+64, 512);
 }
 
+void create_gear_configurator() {
+    lv_obj_t *back_button = create_settings_button(gear_screen_view, "", "Back", 0, 0, BUTTON_GOFROM_SETTINGS, settings_callback);
+    lv_obj_set_align(back_button, LV_ALIGN_BOTTOM_RIGHT);
+
+    lv_label_t *guide = create_label("Switch to gear #1", gear_screen_view);
+}
+
 void create_ui() {
     dashboard_view = lv_obj_create(NULL);
     settings_view = lv_obj_create(NULL);
     splash_screen_view = lv_obj_create(NULL);
+    gear_screen_view = lv_obj_create(NULL);
+
+    lv_obj_set_layout(settings_view, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(settings_view, LV_FLEX_FLOW_COLUMN);
 
     create_dashboard();
     create_settings();
     create_open_animation();
+    create_gear_configurator();
 }
 
 int main(int argc, char **argv)
 {
   (void)argc;
   (void)argv;
+
 
   lv_init();
 
@@ -310,6 +321,8 @@ int main(int argc, char **argv)
         splash_shown = true;
         lv_scr_load(dashboard_view);
     }
+
+    lv_obj_set_style_bg_color(lv_scr_act(), lv_color_white(), 0);
 
     char speed_text[32];
     sprintf(speed_text, "%d KMH", speed);
@@ -397,5 +410,3 @@ int main(int argc, char **argv)
 
   return 0;
 }
-
-#endif
